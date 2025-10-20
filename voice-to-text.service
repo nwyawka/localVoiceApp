@@ -1,0 +1,17 @@
+[Unit]
+Description=Local Voice-to-Text Service
+After=graphical.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/mattuh/Desktop/DataWerkes/localVoiceApp
+ExecStart=/usr/bin/node /home/mattuh/Desktop/DataWerkes/localVoiceApp/index.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment="DISPLAY=:0"
+Environment="XAUTHORITY=/home/mattuh/.Xauthority"
+
+[Install]
+WantedBy=default.target

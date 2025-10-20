@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Vosk models (large files - download separately)
+models/
+
+# Runtime/temporary files
+.recording_status
+.indicator.sh
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db

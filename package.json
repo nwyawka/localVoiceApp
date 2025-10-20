@@ -1,0 +1,18 @@
+{
+  "name": "localvoiceapp",
+  "version": "1.0.0",
+  "description": "Local voice-to-text application with keyboard shortcut activation",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "node-global-key-listener": "^0.3.0",
+    "node-record-lpcm16": "^1.0.1",
+    "vosk": "^0.3.39"
+  }
+}

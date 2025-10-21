@@ -11,8 +11,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "blessed": "^0.1.81",
+    "express": "^5.1.0",
     "node-global-key-listener": "^0.3.0",
     "node-record-lpcm16": "^1.0.1",
-    "vosk": "^0.3.39"
+    "vosk": "^0.3.39",
+    "ws": "^8.18.3"
   }
 }

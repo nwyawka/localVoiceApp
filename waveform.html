@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice-to-Text Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .status-indicator-top {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            padding: 8px 15px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 20px;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            backdrop-filter: blur(10px);
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .status-idle .status-dot {
+            background-color: #888;
+        }
+
+        .status-recording .status-dot {
+            background-color: #ff4444;
+            animation: pulse 1.5s infinite;
+        }
+
+        .status-processing .status-dot {
+            background-color: #ffaa00;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            padding: 8px 15px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+
+        .connected {
+            color: #44ff44;
+        }
+
+        .disconnected {
+            color: #ff4444;
+        }
+
+        .main-container {
+            width: 95%;
+            max-width: 1400px;
+            height: 100px;
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .controls-section {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .controls-section p {
+            font-size: 0.95em;
+            line-height: 1.6;
+        }
+
+        .hotkey {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-weight: bold;
+            margin: 5px 0;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .waveform-section {
+            height: 100%;
+            position: relative;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body>
+    <div class="status-indicator-top status-idle" id="statusIndicator">
+        <span class="status-dot"></span>
+        <span id="statusText">Idle</span>
+    </div>
+
+    <div class="connection-status" id="connectionStatus">
+        <span class="disconnected">● Connecting...</span>
+    </div>
+
+    <div class="main-container">
+        <!-- Left: Controls -->
+        <div class="controls-section">
+            <p>Press <span class="hotkey">F9</span> to start/stop recording</p>
+        </div>
+
+        <!-- Center: Waveform -->
+        <div class="waveform-section">
+            <canvas id="waveform" width="800" height="100"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('waveform');
+        const ctx = canvas.getContext('2d');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const connectionStatus = document.getElementById('connectionStatus');
+
+        // Set canvas size to match display size
+        canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+        canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+        // Waveform visualization
+        let audioData = [];
+        let maxDataPoints = 100;
+        let currentStatus = 'idle';
+
+        // WebSocket connection
+        const ws = new WebSocket('ws://localhost:8765');
+
+        ws.onopen = () => {
+            console.log('WebSocket connected');
+            connectionStatus.innerHTML = '<span class="connected">● Connected</span>';
+        };
+
+        ws.onclose = () => {
+            console.log('WebSocket disconnected');
+            connectionStatus.innerHTML = '<span class="disconnected">● Disconnected</span>';
+            setTimeout(() => location.reload(), 3000);
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            connectionStatus.innerHTML = '<span class="disconnected">● Error</span>';
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'status') {
+                currentStatus = data.status;
+                updateStatus(data.status);
+            } else if (data.type === 'amplitude') {
+                audioData.push(data.value);
+                if (audioData.length > maxDataPoints) {
+                    audioData.shift();
+                }
+            }
+            // Ignore transcription data - not displaying on page
+        };
+
+        function updateStatus(status) {
+            statusIndicator.className = `status-indicator-top status-${status}`;
+
+            switch(status) {
+                case 'idle':
+                    statusText.textContent = 'Idle';
+                    break;
+                case 'recording':
+                    statusText.textContent = 'Recording';
+                    break;
+                case 'processing':
+                    statusText.textContent = 'Processing';
+                    break;
+            }
+        }
+
+        // Draw waveform
+        function drawWaveform() {
+            const width = canvas.offsetWidth;
+            const height = canvas.offsetHeight;
+
+            // Clear canvas
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw center line
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, height / 2);
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+
+            // Draw waveform
+            if (currentStatus === 'recording' && audioData.length > 1) {
+                const sliceWidth = width / maxDataPoints;
+
+                // Create gradient for waveform
+                const gradient = ctx.createLinearGradient(0, 0, width, 0);
+                gradient.addColorStop(0, 'rgba(255, 100, 100, 0.8)');
+                gradient.addColorStop(0.5, 'rgba(255, 200, 100, 0.8)');
+                gradient.addColorStop(1, 'rgba(100, 200, 255, 0.8)');
+
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                for (let i = 0; i < audioData.length; i++) {
+                    const x = i * sliceWidth;
+                    const amplitude = audioData[i];
+                    const y = height / 2 + (amplitude * 3 * height / 2);
+
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+
+                ctx.stroke();
+
+                // Draw filled area under waveform
+                ctx.lineTo(width, height / 2);
+                ctx.lineTo(0, height / 2);
+                ctx.closePath();
+
+                const fillGradient = ctx.createLinearGradient(0, 0, 0, height);
+                fillGradient.addColorStop(0, 'rgba(255, 100, 100, 0.2)');
+                fillGradient.addColorStop(1, 'rgba(100, 200, 255, 0.2)');
+                ctx.fillStyle = fillGradient;
+                ctx.fill();
+            } else if (currentStatus === 'idle') {
+                // Draw idle state - flat line with slight animation
+                const time = Date.now() / 1000;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                for (let x = 0; x < width; x++) {
+                    const y = height / 2 + Math.sin(x / 20 + time * 2) * 3;
+                    if (x === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+
+                ctx.stroke();
+            }
+
+            requestAnimationFrame(drawWaveform);
+        }
+
+        // Start animation loop
+        drawWaveform();
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+            canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        });
+    </script>
+</body>
+</html>

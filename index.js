@@ -2,8 +2,9 @@ const vosk = require('vosk');
 const record = require('node-record-lpcm16');
 const fs = require('fs');
 const path = require('path');
-const { execSync, spawn } = require('child_process');
+const { execSync } = require('child_process');
 const { GlobalKeyboardListener } = require('node-global-key-listener');
+const blessed = require('blessed');
 
 // Path to the Vosk model (using large model for better accuracy)
 const MODEL_PATH = path.join(__dirname, 'models', 'vosk-model-en-us-0.22');
@@ -19,74 +20,139 @@ console.log('Loading Vosk model...');
 const model = new vosk.Model(MODEL_PATH);
 console.log('Model loaded successfully!');
 
+// Create blessed screen (full screen, but elements will be sized smaller)
+const screen = blessed.screen({
+    smartCSR: true,
+    title: 'Voice-to-Text Monitor',
+    fullUnicode: true
+});
+
+// Status indicator (top left)
+const statusBox = blessed.box({
+    top: 0,
+    left: 0,
+    width: 20,
+    height: 1,
+    content: '{bold}● Idle{/bold}',
+    tags: true,
+    style: {
+        fg: 'gray'
+    }
+});
+
+// Instructions box (left side) - fixed compact size
+const controlsBox = blessed.box({
+    top: 1,
+    left: 0,
+    width: 15,
+    height: 6,  // Fixed height for compact window
+    border: {
+        type: 'line'
+    },
+    style: {
+        border: {
+            fg: 'cyan'
+        }
+    },
+    content: '\n Press\n {bold}F9{/bold}\n start\n stop',
+    tags: true,
+    align: 'center',
+    valign: 'middle'
+});
+
+// Waveform display box (right side) - fixed compact size
+const waveformBox = blessed.box({
+    top: 1,
+    left: 15,
+    width: 45,  // Fixed width for compact window (60 total - 15 controls)
+    height: 6,  // Fixed height for compact window
+    border: {
+        type: 'line'
+    },
+    style: {
+        border: {
+            fg: 'cyan'
+        }
+    },
+    content: '',
+    tags: true
+});
+
+// Add elements to screen
+screen.append(statusBox);
+screen.append(controlsBox);
+screen.append(waveformBox);
+
 // State management
 let isRecording = false;
 let recognizer = null;
 let recorder = null;
-let lastTypedText = ''; // Track what we've already typed in real-time
-let indicatorProcess = null; // Process for visual indicator
+let typedWords = []; // Queue of words that have been typed
+let audioData = []; // Audio amplitude data for waveform
+let lastPartialText = ''; // Track the last partial result to avoid duplicates
+const maxDataPoints = 50; // Number of waveform points to display (adjusted for smaller window)
 
 // Create keyboard listener
 const keyboard = new GlobalKeyboardListener();
 
-// Status indicator file
-const STATUS_FILE = path.join(__dirname, '.recording_status');
+// Function to calculate audio amplitude for waveform
+function calculateAmplitude(buffer) {
+    let sum = 0;
+    const view = new Int16Array(buffer.buffer, buffer.byteOffset, buffer.length / 2);
 
-// Function to update visual indicator
-function updateIndicator(status) {
-    // Write status to file
-    fs.writeFileSync(STATUS_FILE, status, 'utf8');
-}
-
-// Function to start visual indicator
-function startVisualIndicator() {
-    // Create a small always-on-top indicator using yad
-    // The indicator will be a notification icon that shows recording status
-    const indicatorScript = `
-#!/bin/bash
-while true; do
-    if [ -f "${STATUS_FILE}" ]; then
-        status=$(cat "${STATUS_FILE}")
-        if [ "$status" = "recording" ]; then
-            echo "🔴 REC"
-        elif [ "$status" = "processing" ]; then
-            echo "⏳ PROC"
-        else
-            echo "⚫ IDLE"
-        fi
-    else
-        echo "⚫ IDLE"
-    fi
-    sleep 0.5
-done | yad --notification --listen --no-middle --command="" --text="⚫ Voice-to-Text"
-    `.trim();
-
-    // Write and execute the indicator script
-    const scriptPath = path.join(__dirname, '.indicator.sh');
-    fs.writeFileSync(scriptPath, indicatorScript, 'utf8');
-    fs.chmodSync(scriptPath, '0755');
-
-    // Start the indicator process
-    indicatorProcess = spawn('bash', [scriptPath], {
-        detached: false,
-        stdio: 'ignore',
-        env: { ...process.env, DISPLAY: process.env.DISPLAY || ':0' }
-    });
-
-    console.log('Visual indicator started');
-}
-
-// Initialize status file
-updateIndicator('idle');
-
-// Function to show desktop notification
-function showNotification(title, message, urgency = 'normal') {
-    try {
-        execSync(`notify-send -u ${urgency} -t 2000 "${title}" "${message}"`, { encoding: 'utf8' });
-    } catch (err) {
-        // Silently fail if notifications don't work
-        console.log(`[Notification] ${title}: ${message}`);
+    for (let i = 0; i < view.length; i++) {
+        sum += Math.abs(view[i]);
     }
+
+    const average = sum / view.length;
+    // Normalize to 0-1 range
+    return average / 32768;
+}
+
+// Unicode block characters for waveform (from low to high)
+const waveformChars = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+
+// Function to update waveform display
+function updateWaveform() {
+    if (isRecording && audioData.length > 0) {
+        // Convert amplitude data to block characters (8x multiplier for visibility)
+        const waveform = audioData.map(amp => {
+            const index = Math.min(Math.floor(amp * 8 * waveformChars.length), waveformChars.length - 1);
+            return waveformChars[Math.max(0, index)];
+        }).join('');
+
+        waveformBox.setContent(`\n  {green-fg}{bold}${waveform}{/bold}{/green-fg}`);
+    } else {
+        // Idle animation
+        const time = Date.now() / 1000;
+        const idleWave = Array(maxDataPoints).fill(0).map((_, i) => {
+            const wave = Math.sin(i / 10 + time * 2) * 0.5 + 0.5;
+            const index = Math.min(Math.floor(wave * 2), waveformChars.length - 1);
+            return waveformChars[index];
+        }).join('');
+
+        waveformBox.setContent(`\n  {gray-fg}${idleWave}{/gray-fg}`);
+    }
+    screen.render();
+}
+
+// Update waveform animation (50ms for smoother updates)
+setInterval(updateWaveform, 50);
+
+// Function to update status indicator
+function updateStatus(status) {
+    switch(status) {
+        case 'idle':
+            statusBox.setContent('{gray-fg}{bold}● Idle{/bold}{/gray-fg}');
+            break;
+        case 'recording':
+            statusBox.setContent('{red-fg}{bold}● Recording{/bold}{/red-fg}');
+            break;
+        case 'processing':
+            statusBox.setContent('{yellow-fg}{bold}● Processing{/bold}{/yellow-fg}');
+            break;
+    }
+    screen.render();
 }
 
 // Function to type text at cursor position
@@ -96,54 +162,46 @@ function typeTextAtCursor(text) {
         const escapedText = text.replace(/'/g, "'\\''");
         // Use xdotool to type the text
         execSync(`xdotool type --delay 12 '${escapedText}'`, { encoding: 'utf8' });
-        console.log('✅ Text inserted at cursor position\n');
     } catch (err) {
-        console.error('Error typing text:', err.message);
-        console.log('Fallback - text copied to clipboard (if xclip available)');
-        try {
-            execSync(`echo '${text}' | xclip -selection clipboard`, { encoding: 'utf8' });
-            console.log('📋 Text copied to clipboard\n');
-        } catch (clipErr) {
-            console.log('Text output:');
-            console.log(text);
-        }
+        // Silently fail if typing doesn't work
     }
 }
 
-// Function to type only new words (for real-time transcription)
+// Function to type only new words (strict forward-only approach)
 function typeNewWords(newText) {
-    // If new text starts with what we've already typed, only type the difference
-    if (newText.startsWith(lastTypedText)) {
-        const newPortion = newText.substring(lastTypedText.length);
-        if (newPortion.length > 0) {
-            typeTextAtCursor(newPortion);
-            lastTypedText = newText;
+    // Split the new text into words
+    const newWords = newText.trim().split(/\s+/).filter(word => word.length > 0);
+
+    // Get the count of words we've already typed
+    const alreadyTypedCount = typedWords.length;
+
+    // ONLY type words beyond what we've already typed - never go backwards
+    if (newWords.length > alreadyTypedCount) {
+        for (let i = alreadyTypedCount; i < newWords.length; i++) {
+            const word = newWords[i];
+
+            // Type the word followed by a space
+            typeTextAtCursor(word + ' ');
+
+            // Add to our queue of typed words
+            typedWords.push(word);
         }
-    } else {
-        // Text changed (correction happened), type the whole new text
-        // Note: This might cause duplication but Vosk is generally consistent with partial results
-        console.log('[Warning] Partial result changed, typing new version');
-        typeTextAtCursor(newText);
-        lastTypedText = newText;
     }
 }
 
 // Function to start recording
 function startRecording() {
     if (isRecording) {
-        console.log('Already recording...');
         return;
     }
 
     isRecording = true;
-    lastTypedText = ''; // Reset for new recording session
-    console.log('\n🎤 Recording started... (Press F9 again to stop)');
+    typedWords = []; // Reset word queue for new recording session
+    audioData = []; // Reset audio data
+    lastPartialText = ''; // Reset partial text tracker
 
-    // Update visual indicator
-    updateIndicator('recording');
-
-    // Show notification
-    showNotification('🎤 Recording', 'Listening... Press F9 to stop', 'normal');
+    // Update status
+    updateStatus('recording');
 
     // Create a new recognizer for this recording session
     recognizer = new vosk.Recognizer({ model: model, sampleRate: 16000 });
@@ -165,6 +223,13 @@ function startRecording() {
         if (recognizer) {
             const endOfSpeech = recognizer.acceptWaveform(data);
 
+            // Calculate audio amplitude for waveform visualization
+            const amplitude = calculateAmplitude(data);
+            audioData.push(amplitude);
+            if (audioData.length > maxDataPoints) {
+                audioData.shift();
+            }
+
             // Get partial result for real-time transcription
             try {
                 const partialResult = recognizer.partialResult();
@@ -172,18 +237,24 @@ function startRecording() {
 
                 if (partial.partial && partial.partial.trim().length > 0) {
                     const newText = partial.partial.trim();
-                    // Type new words as they're recognized
-                    typeNewWords(newText);
+
+                    // Count words in the new result
+                    const newWordCount = newText.split(/\s+/).filter(w => w.length > 0).length;
+
+                    // Only process if we have MORE words than before
+                    if (newWordCount > typedWords.length) {
+                        lastPartialText = newText;
+                        // Type new words as they're recognized
+                        typeNewWords(newText);
+                    }
                 }
             } catch (err) {
                 // Silently ignore partial result errors
-                console.log('[Debug] Partial result error:', err.message);
             }
         }
     });
 
     audioStream.on('error', (err) => {
-        console.error('Recording error:', err);
         stopRecording();
     });
 
@@ -193,25 +264,14 @@ function startRecording() {
 // Function to stop recording
 function stopRecording() {
     if (!isRecording) {
-        console.log('Not currently recording...');
         return;
     }
 
-    console.log('🛑 Finishing recording... (2 more seconds)\n');
-
-    // Update indicator to processing
-    updateIndicator('processing');
-
-    // Show notification that we're continuing to record for 2 more seconds
-    showNotification('⏸️ Finishing up...', 'Recording for 2 more seconds', 'normal');
+    // Update status to processing
+    updateStatus('processing');
 
     // Continue recording for 2 more seconds, then process
     setTimeout(() => {
-        console.log('🛑 Recording complete. Processing...\n');
-
-        // Show processing notification
-        showNotification('⏳ Processing', 'Transcribing audio...', 'normal');
-
         // Stop the recorder
         if (recorder) {
             recorder.stop();
@@ -230,52 +290,35 @@ function stopRecording() {
                 const result = typeof finalResult === 'string' ? JSON.parse(finalResult) : finalResult;
                 if (result.text && result.text.trim().length > 0) {
                     const transcribedText = result.text.trim();
-                    console.log('📝 Final Transcription:', transcribedText);
 
-                    // Show success notification
-                    showNotification('✅ Transcription Complete', transcribedText.substring(0, 50) + (transcribedText.length > 50 ? '...' : ''), 'normal');
+                    // Use word-based queue to type only remaining words
+                    const finalWords = transcribedText.split(/\s+/).filter(word => word.length > 0);
 
-                    // Type only any remaining words that weren't in partial results
-                    if (transcribedText.length > lastTypedText.length) {
-                        const remainingText = transcribedText.substring(lastTypedText.length);
-                        if (remainingText.trim().length > 0) {
-                            console.log('[Debug] Typing remaining text:', remainingText);
-                            typeTextAtCursor(remainingText);
-                        }
+                    // Type any remaining words that weren't captured in partial results
+                    for (let i = typedWords.length; i < finalWords.length; i++) {
+                        const word = finalWords[i];
+                        typeTextAtCursor(word + ' ');
+                        typedWords.push(word);
                     }
 
-                    // Add a space after the transcription for next sentence
-                    typeTextAtCursor(' ');
-
-                    // Set indicator back to idle
-                    updateIndicator('idle');
+                    // Set status back to idle
+                    updateStatus('idle');
                 } else {
-                    console.log('❌ No speech detected or transcription failed.\n');
-                    showNotification('❌ No Speech Detected', 'Please try again', 'critical');
-
-                    // Set indicator back to idle
-                    updateIndicator('idle');
+                    // Set status back to idle
+                    updateStatus('idle');
                 }
             } catch (err) {
-                console.error('Error parsing result:', err);
-                console.error('Raw result:', finalResult);
-
-                // Set indicator back to idle on error
-                updateIndicator('idle');
+                // Set status back to idle on error
+                updateStatus('idle');
             }
         }
 
         isRecording = false;
+        audioData = []; // Clear audio data
     }, 2000); // 2 second delay
 }
 
 // Listen for keyboard shortcuts
-console.log('\n✅ Voice-to-text application ready!');
-console.log('Press F9 key to start/stop recording');
-console.log('Text will be typed at your cursor position');
-console.log('Visual indicator will show in system tray');
-console.log('Press Ctrl+C to exit\n');
-
 keyboard.addListener((e, down) => {
     // Check for F9 key
     if (e.state === 'DOWN' && e.name === 'F9') {
@@ -287,27 +330,19 @@ keyboard.addListener((e, down) => {
     }
 });
 
-// Start visual indicator
-startVisualIndicator();
-
-// Handle cleanup on exit
-process.on('SIGINT', () => {
-    console.log('\n\nCleaning up...');
+// Quit on Escape, q, or Control-C
+screen.key(['escape', 'q', 'C-c'], function(ch, key) {
     if (isRecording) {
         stopRecording();
     }
     if (model) {
         model.free();
     }
-    if (indicatorProcess) {
-        indicatorProcess.kill();
-    }
-    // Clean up status file
-    if (fs.existsSync(STATUS_FILE)) {
-        fs.unlinkSync(STATUS_FILE);
-    }
-    process.exit(0);
+    return process.exit(0);
 });
+
+// Initial render
+screen.render();
 
 // Keep the process running
 process.stdin.resume();

@@ -237,19 +237,16 @@ function updateWaveform() {
 setInterval(updateWaveform, 50);
 
 // Function to update status indicator
-function updateStatus(status) {
-    switch(status) {
-        case 'idle':
-            statusBox.setContent('{gray-fg}{bold}● Idle{/bold}{/gray-fg}');
-            break;
-        case 'recording':
-            statusBox.setContent('{red-fg}{bold}● Recording{/bold}{/red-fg}');
-            break;
-        case 'processing':
-            statusBox.setContent('{yellow-fg}{bold}● Processing{/bold}{/yellow-fg}');
-            break;
-    }
-    screen.render();
+function updateStatus(state) {
+  const statusMap = {
+    'idle': '{white-fg}⚫ IDLE{/white-fg}',
+    'recording': '{red-fg}🔴 REC{/red-fg}',
+    'processing': '{yellow-fg}⏳ PROC{/yellow-fg}'
+  };
+
+  const statusText = statusMap[state] || statusMap.idle;
+  headerBox.setContent(`{center}${statusText}{/center}`);
+  screen.render();
 }
 
 // Function to type text at cursor position

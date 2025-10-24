@@ -218,7 +218,7 @@ function updateWaveform() {
             return waveformChars[Math.max(0, index)];
         }).join('');
 
-        waveformBox.setContent(`\n  {green-fg}{bold}${waveform}{/bold}{/green-fg}`);
+        waveformBox.setContent(`\n  ${waveform}`);
     } else {
         // Idle animation
         const time = Date.now() / 1000;
@@ -228,7 +228,7 @@ function updateWaveform() {
             return waveformChars[index];
         }).join('');
 
-        waveformBox.setContent(`\n  {gray-fg}${idleWave}{/gray-fg}`);
+        waveformBox.setContent(`\n  ${idleWave}`);
     }
     screen.render();
 }

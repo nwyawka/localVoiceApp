@@ -9,6 +9,9 @@ const blessed = require('blessed');
 // Path to the Vosk model (using large model for better accuracy)
 const MODEL_PATH = path.join(__dirname, 'models', 'vosk-model-en-us-0.22');
 
+// Global variable for tracking audio level
+let currentAudioLevel = 0;
+
 // Check if model exists
 if (!fs.existsSync(MODEL_PATH)) {
     console.error('Model not found. Please download the Vosk model first.');
@@ -49,6 +52,23 @@ function getDefaultMicrophone() {
   }
 
   return 'Default';
+}
+
+// Calculate audio level as percentage (0-100)
+function calculateAudioLevel(buffer) {
+  if (!buffer || buffer.length === 0) return 0;
+
+  // Calculate RMS (Root Mean Square)
+  let sum = 0;
+  for (let i = 0; i < buffer.length; i++) {
+    const normalized = buffer.readInt16LE(i * 2) / 32768.0;
+    sum += normalized * normalized;
+  }
+  const rms = Math.sqrt(sum / (buffer.length / 2));
+
+  // Convert to percentage, amplify for visibility
+  const level = Math.min(100, Math.floor(rms * 100 * 8));
+  return level;
 }
 
 // Initialize Vosk model

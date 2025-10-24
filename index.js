@@ -83,6 +83,8 @@ const screen = blessed.screen({
     fullUnicode: true
 });
 
+// OLD LAYOUT - Commenting out for redesign
+/*
 // Status indicator (top left)
 const statusBox = blessed.box({
     top: 0,
@@ -133,11 +135,12 @@ const waveformBox = blessed.box({
     content: '',
     tags: true
 });
+*/
 
 // Add elements to screen
-screen.append(statusBox);
-screen.append(controlsBox);
-screen.append(waveformBox);
+// screen.append(statusBox);
+// screen.append(controlsBox);
+// screen.append(waveformBox);
 
 // State management
 let isRecording = false;

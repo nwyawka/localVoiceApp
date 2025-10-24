@@ -249,6 +249,23 @@ function updateStatus(state) {
   screen.render();
 }
 
+// Function to update info line with mic and controls
+function updateInfoLine() {
+  const micName = getDefaultMicrophone();
+  const level = currentAudioLevel;
+
+  const leftInfo = `{yellow-fg}Mic:{/yellow-fg} {green-fg}${micName} (${level}%){/green-fg}`;
+  const rightInfo = `{yellow-fg}F9:{/yellow-fg} {green-fg}Start/Stop{/green-fg}`;
+
+  // Strip tags for length calculation
+  const leftPlain = leftInfo.replace(/\{[^}]+\}/g, '');
+  const rightPlain = rightInfo.replace(/\{[^}]+\}/g, '');
+  const padding = ' '.repeat(Math.max(1, 60 - leftPlain.length - rightPlain.length));
+
+  infoLine.setContent(leftInfo + padding + rightInfo);
+  screen.render();
+}
+
 // Function to type text at cursor position
 function typeTextAtCursor(text) {
     try {
@@ -437,6 +454,9 @@ screen.key(['escape', 'q', 'C-c'], function(ch, key) {
 
 // Initial render
 screen.render();
+
+// Initialize info line
+updateInfoLine();
 
 // Keep the process running
 process.stdin.resume();

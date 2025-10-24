@@ -137,10 +137,48 @@ const waveformBox = blessed.box({
 });
 */
 
+// NEW LAYOUT - Audio interface style
+const headerBox = blessed.box({
+  top: 0,
+  left: 0,
+  width: '100%',
+  height: 3,
+  content: '{center}{white-fg}⚫ IDLE{/white-fg}{/center}',
+  tags: true,
+  style: {
+    bg: 'black'
+  }
+});
+
+const infoLine = blessed.text({
+  top: 3,
+  left: 0,
+  width: '100%',
+  height: 1,
+  content: '',
+  tags: true,
+  style: {
+    bg: 'black'
+  }
+});
+
+const waveformBox = blessed.box({
+  top: 4,
+  left: 0,
+  width: '100%',
+  height: 4,
+  content: '',
+  tags: true,
+  style: {
+    fg: 'cyan',
+    bg: 'black'
+  }
+});
+
 // Add elements to screen
-// screen.append(statusBox);
-// screen.append(controlsBox);
-// screen.append(waveformBox);
+screen.append(headerBox);
+screen.append(infoLine);
+screen.append(waveformBox);
 
 // State management
 let isRecording = false;

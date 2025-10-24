@@ -188,6 +188,7 @@ let typedWords = []; // Queue of words that have been typed
 let audioData = []; // Audio amplitude data for waveform
 let lastPartialText = ''; // Track the last partial result to avoid duplicates
 const maxDataPoints = 50; // Number of waveform points to display (adjusted for smaller window)
+let audioLevelInterval = null; // Interval for updating audio level display
 
 // Create keyboard listener
 const keyboard = new GlobalKeyboardListener();
@@ -314,6 +315,11 @@ function startRecording() {
     // Update status
     updateStatus('recording');
 
+    // Start interval to update info line with audio level every 100ms
+    audioLevelInterval = setInterval(() => {
+        updateInfoLine();
+    }, 100);
+
     // Create a new recognizer for this recording session
     recognizer = new vosk.Recognizer({ model: model, sampleRate: 16000 });
     recognizer.setMaxAlternatives(0);
@@ -340,6 +346,9 @@ function startRecording() {
             if (audioData.length > maxDataPoints) {
                 audioData.shift();
             }
+
+            // Update audio level for info line display
+            currentAudioLevel = calculateAudioLevel(data);
 
             // Get partial result for real-time transcription
             try {
@@ -380,6 +389,14 @@ function stopRecording() {
 
     // Update status to processing
     updateStatus('processing');
+
+    // Stop the audio level update interval
+    if (audioLevelInterval) {
+        clearInterval(audioLevelInterval);
+        audioLevelInterval = null;
+    }
+    currentAudioLevel = 0;
+    updateInfoLine(); // Reset to 0%
 
     // Continue recording for 2 more seconds, then process
     setTimeout(() => {

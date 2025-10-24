@@ -15,6 +15,42 @@ if (!fs.existsSync(MODEL_PATH)) {
     process.exit(1);
 }
 
+// Detect default microphone device
+function getDefaultMicrophone() {
+  try {
+    const { execSync } = require('child_process');
+
+    // Try PulseAudio first
+    try {
+      const output = execSync('pactl list sources | grep -A 10 "State: RUNNING" | grep "Description:" | head -1', {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'ignore']
+      });
+      const match = output.match(/Description:\s*(.+)/);
+      if (match) {
+        const name = match[1].trim();
+        // Truncate if too long (leave room for level indicator)
+        return name.length > 35 ? name.substring(0, 32) + '...' : name;
+      }
+    } catch (e) {
+      // PulseAudio not available, try ALSA
+      const output = execSync('arecord -l | grep "card" | head -1', {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'ignore']
+      });
+      const match = output.match(/card \d+: ([^,\[]+)/);
+      if (match) {
+        const name = match[1].trim();
+        return name.length > 35 ? name.substring(0, 32) + '...' : name;
+      }
+    }
+  } catch (error) {
+    // Detection failed, use fallback
+  }
+
+  return 'Default';
+}
+
 // Initialize Vosk model
 console.log('Loading Vosk model...');
 const model = new vosk.Model(MODEL_PATH);

@@ -11,6 +11,7 @@ const MODEL_PATH = path.join(__dirname, 'models', 'vosk-model-en-us-0.22');
 
 // Global variable for tracking audio level
 let currentAudioLevel = 0;
+let cachedMicName = null; // Cache mic name during recording to avoid repeated shell calls
 
 // Check if model exists
 if (!fs.existsSync(MODEL_PATH)) {
@@ -198,7 +199,7 @@ function updateStatus(state) {
 
 // Function to update info line with mic and controls
 function updateInfoLine() {
-  const micName = getDefaultMicrophone();
+  const micName = cachedMicName || getDefaultMicrophone();
   const level = currentAudioLevel;
 
   const leftInfo = `{yellow-fg}Mic:{/yellow-fg} {green-fg}${micName} (${level}%){/green-fg}`;
@@ -260,6 +261,9 @@ function startRecording() {
 
     // Update status
     updateStatus('recording');
+
+    // Cache microphone name once at start (avoid repeated shell calls during recording)
+    cachedMicName = getDefaultMicrophone();
 
     // Start interval to update info line with audio level every 100ms
     audioLevelInterval = setInterval(() => {
@@ -342,6 +346,7 @@ function stopRecording() {
         audioLevelInterval = null;
     }
     currentAudioLevel = 0;
+    cachedMicName = null; // Clear cached name
     updateInfoLine(); // Reset to 0%
 
     // Continue recording for 2 more seconds, then process

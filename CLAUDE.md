@@ -350,7 +350,43 @@ rec -d 3 test.wav
 
 See LICENSE file (to be added)
 
+## Interface Redesign (October 24, 2025)
+
+The ncurses interface was redesigned to match professional audio application aesthetics:
+
+### New Layout (60×8 terminal)
+- **Header (rows 0-2):** Centered status indicator
+  - ⚫ IDLE (white) - Ready to record
+  - 🔴 REC (red) - Currently recording
+  - ⏳ PROC (yellow) - Processing final transcription
+- **Info Line (row 3):**
+  - Left: Microphone name and real-time audio level %
+  - Right: F9 hotkey reminder
+- **Waveform (rows 4-7):** Full-width cyan visualization
+
+### Color Scheme
+- Status indicators: White (idle), Red (recording), Yellow (processing)
+- Labels: Yellow (Mic:, F9:)
+- Values: Green (device name, percentage, actions)
+- Waveform: Cyan
+
+### New Features
+- Real-time microphone detection (PulseAudio/ALSA)
+- Live audio level display (0-100% RMS calculation)
+- Horizontal information layout
+- Color-coded status states
+
+All core functionality preserved: F9 recording, real-time transcription,
+2-second buffer, xdotool typing, systemd service.
+
 ## Changelog
+
+### Version 2.0.0 (October 24, 2025)
+- Interface redesign with horizontal layout
+- Real-time microphone detection
+- Live audio level visualization
+- Professional audio application aesthetic
+- Cyan waveform with yellow/green labels
 
 ### Version 1.0.0 (October 20, 2025)
 - Initial release

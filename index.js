@@ -83,60 +83,6 @@ const screen = blessed.screen({
     fullUnicode: true
 });
 
-// OLD LAYOUT - Commenting out for redesign
-/*
-// Status indicator (top left)
-const statusBox = blessed.box({
-    top: 0,
-    left: 0,
-    width: 20,
-    height: 1,
-    content: '{bold}● Idle{/bold}',
-    tags: true,
-    style: {
-        fg: 'gray'
-    }
-});
-
-// Instructions box (left side) - fixed compact size
-const controlsBox = blessed.box({
-    top: 1,
-    left: 0,
-    width: 15,
-    height: 6,  // Fixed height for compact window
-    border: {
-        type: 'line'
-    },
-    style: {
-        border: {
-            fg: 'cyan'
-        }
-    },
-    content: '\n Press\n {bold}F9{/bold}\n start\n stop',
-    tags: true,
-    align: 'center',
-    valign: 'middle'
-});
-
-// Waveform display box (right side) - fixed compact size
-const waveformBox = blessed.box({
-    top: 1,
-    left: 15,
-    width: 45,  // Fixed width for compact window (60 total - 15 controls)
-    height: 6,  // Fixed height for compact window
-    border: {
-        type: 'line'
-    },
-    style: {
-        border: {
-            fg: 'cyan'
-        }
-    },
-    content: '',
-    tags: true
-});
-*/
-
 // NEW LAYOUT - Audio interface style
 const headerBox = blessed.box({
   top: 0,

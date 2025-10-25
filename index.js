@@ -322,9 +322,18 @@ function stopRecording() {
 
 // Process complete recording
 function processRecording() {
+    let recognizer = null;
+    let completeAudio = null;
+    let processedData = null;
+    let audioOnly = null;
+
     try {
         // Combine all audio buffers
-        const completeAudio = Buffer.concat(audioBuffers);
+        completeAudio = Buffer.concat(audioBuffers);
+
+        // CRITICAL: Clear audioBuffers immediately to free memory
+        audioBuffers.length = 0;
+        audioBuffers = [];
 
         // Save to temporary file
         const tempFile = `/tmp/recording_${Date.now()}.wav`;
@@ -334,15 +343,21 @@ function processRecording() {
         const wavHeader = createWavHeader(completeAudio.length);
         fs.writeFileSync(tempFile, Buffer.concat([wavHeader, completeAudio]));
 
+        // Free the complete audio buffer now that it's written to disk
+        completeAudio = null;
+
         // Apply audio preprocessing
         const processedFile = audioProcessor.preprocessFile(tempFile, tempProcessed);
 
         // Read processed audio
-        const processedData = fs.readFileSync(processedFile);
-        const audioOnly = processedData.slice(44); // Skip WAV header
+        processedData = fs.readFileSync(processedFile);
+        audioOnly = processedData.slice(44); // Skip WAV header
+
+        // Free processedData since we have the slice we need
+        processedData = null;
 
         // Create recognizer
-        const recognizer = new vosk.Recognizer({ model: model, sampleRate: 16000 });
+        recognizer = new vosk.Recognizer({ model: model, sampleRate: 16000 });
         recognizer.setWords(true);
 
         // Process audio in chunks
@@ -355,6 +370,10 @@ function processRecording() {
         // Get final result
         const finalResult = recognizer.finalResult();
         recognizer.free();
+        recognizer = null;
+
+        // Free audio buffer after recognition
+        audioOnly = null;
 
         // Parse result
         const result = typeof finalResult === 'string' ? JSON.parse(finalResult) : finalResult;
@@ -395,7 +414,29 @@ function processRecording() {
 
     } catch (error) {
         console.error('Processing error:', error.message || error);
+
+        // Emergency cleanup: free recognizer if it exists
+        if (recognizer) {
+            try {
+                recognizer.free();
+            } catch (e) {
+                // Ignore free errors
+            }
+        }
+
+        // Clear buffers even on error
+        audioBuffers.length = 0;
+        audioBuffers = [];
+        completeAudio = null;
+        processedData = null;
+        audioOnly = null;
+
         updateStatus('idle');
+    }
+
+    // Suggest garbage collection for large buffers
+    if (global.gc) {
+        global.gc();
     }
 }
 

@@ -276,12 +276,17 @@ function startRecording() {
     recognizer.setWords(true);
 
     // Start recording with node-record-lpcm16
+    // Use rec-wrapper.sh to run rec as original user (preserves audio access when using sudo)
+    const recCommand = fs.existsSync(path.join(__dirname, 'rec-wrapper.sh'))
+        ? path.join(__dirname, 'rec-wrapper.sh')
+        : 'rec';
+
     recorder = record.record({
         sampleRate: 16000,
         channels: 1,
         threshold: 0,
         silence: '2.0',
-        recordProgram: 'rec', // Uses SoX
+        recordProgram: recCommand, // Uses SoX via wrapper
     });
 
     const audioStream = recorder.stream();

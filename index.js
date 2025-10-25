@@ -222,7 +222,7 @@ function typeTextAtCursor(text) {
         // Use xdotool to type the text
         execSync(`xdotool type --delay 12 '${escapedText}'`, { encoding: 'utf8' });
     } catch (err) {
-        // Silently fail if typing doesn't work
+        console.error('Error typing text:', err.message || err);
     }
 }
 
@@ -325,6 +325,7 @@ function startRecording() {
     });
 
     audioStream.on('error', (err) => {
+        console.error('Audio stream error:', err.message || err);
         stopRecording();
     });
 
@@ -388,6 +389,7 @@ function stopRecording() {
                 }
             } catch (err) {
                 // Set status back to idle on error
+                console.error('Error processing final result:', err.message || err);
                 updateStatus('idle');
             }
         }

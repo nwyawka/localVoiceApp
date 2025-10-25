@@ -244,7 +244,7 @@ function typeTextAtCursor(text) {
     }
 }
 
-// Function to type only new words (strict forward-only approach)
+// Function to type only new words (strict forward-only approach with validation)
 function typeNewWords(newText) {
     // Split the new text into words
     const newWords = newText.trim().split(/\s+/).filter(word => word.length > 0);
@@ -252,16 +252,31 @@ function typeNewWords(newText) {
     // Get the count of words we've already typed
     const alreadyTypedCount = typedWords.length;
 
-    // ONLY type words beyond what we've already typed - never go backwards
+    // ONLY type words beyond what we've already typed
     if (newWords.length > alreadyTypedCount) {
-        for (let i = alreadyTypedCount; i < newWords.length; i++) {
-            const word = newWords[i];
+        // Verify the beginning matches what we've already typed
+        // This prevents duplicates if Vosk re-recognizes earlier words differently
+        let wordsMatch = true;
+        for (let i = 0; i < alreadyTypedCount && i < newWords.length; i++) {
+            if (newWords[i] !== typedWords[i]) {
+                // Mismatch detected - Vosk changed earlier words
+                // Don't type anything to prevent duplicates
+                wordsMatch = false;
+                break;
+            }
+        }
 
-            // Type the word followed by a space
-            typeTextAtCursor(word + ' ');
+        // Only type new words if the beginning matches
+        if (wordsMatch) {
+            for (let i = alreadyTypedCount; i < newWords.length; i++) {
+                const word = newWords[i];
 
-            // Add to our queue of typed words
-            typedWords.push(word);
+                // Type the word followed by a space
+                typeTextAtCursor(word + ' ');
+
+                // Add to our queue of typed words
+                typedWords.push(word);
+            }
         }
     }
 }

@@ -127,73 +127,17 @@ const infoLine = blessed.text({
   }
 });
 
-const waveformBox = blessed.box({
-  top: 4,
-  left: 0,
-  width: '100%',
-  height: 4,
-  content: '',
-  tags: true,
-  style: {
-    fg: 'cyan',
-    bg: 'black'
-  }
-});
-
 screen.append(headerBox);
 screen.append(infoLine);
-screen.append(waveformBox);
 
 // State management
 let isRecording = false;
 let recorder = null;
 let audioBuffers = []; // Store all audio buffers
-let audioData = []; // Waveform visualization
-const maxDataPoints = 50;
 let audioLevelInterval = null;
 
 // Create keyboard listener
 const keyboard = new GlobalKeyboardListener();
-
-// Calculate amplitude
-function calculateAmplitude(buffer) {
-    let sum = 0;
-    const view = new Int16Array(buffer.buffer, buffer.byteOffset, buffer.length / 2);
-
-    for (let i = 0; i < view.length; i++) {
-        sum += Math.abs(view[i]);
-    }
-
-    const average = sum / view.length;
-    return average / 32768;
-}
-
-// Unicode waveform characters
-const waveformChars = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-
-// Update waveform display
-function updateWaveform() {
-    if (isRecording && audioData.length > 0) {
-        const waveform = audioData.map(amp => {
-            const index = Math.min(Math.floor(amp * 8 * waveformChars.length), waveformChars.length - 1);
-            return waveformChars[Math.max(0, index)];
-        }).join('');
-
-        waveformBox.setContent(`\n  ${waveform}`);
-    } else {
-        const time = Date.now() / 1000;
-        const idleWave = Array(maxDataPoints).fill(0).map((_, i) => {
-            const wave = Math.sin(i / 10 + time * 2) * 0.5 + 0.5;
-            const index = Math.min(Math.floor(wave * 2), waveformChars.length - 1);
-            return waveformChars[index];
-        }).join('');
-
-        waveformBox.setContent(`\n  ${idleWave}`);
-    }
-    screen.render();
-}
-
-setInterval(updateWaveform, 50);
 
 // Update status
 function updateStatus(state) {
@@ -242,7 +186,6 @@ function startRecording() {
 
     isRecording = true;
     audioBuffers = []; // Clear buffer array
-    audioData = [];
 
     updateStatus('recording');
     cachedMicName = getDefaultMicrophone();
@@ -270,13 +213,7 @@ function startRecording() {
         // Store all audio data
         audioBuffers.push(Buffer.from(data));
 
-        // Update visualization
-        const amplitude = calculateAmplitude(data);
-        audioData.push(amplitude);
-        if (audioData.length > maxDataPoints) {
-            audioData.shift();
-        }
-
+        // Update audio level for display
         currentAudioLevel = calculateAudioLevel(data);
     });
 
@@ -316,7 +253,6 @@ function stopRecording() {
         processRecording();
 
         isRecording = false;
-        audioData = [];
     }, 2000);
 }
 

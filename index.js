@@ -8,16 +8,18 @@ const blessed = require('blessed');
 
 // Global error handlers to catch all uncaught exceptions
 process.on('uncaughtException', (err) => {
-    console.error('\n=== UNCAUGHT EXCEPTION ===');
-    console.error('Error:', err.message);
-    console.error('Stack:', err.stack);
+    const errorMsg = `\n=== UNCAUGHT EXCEPTION ===\nError: ${err.message}\nStack: ${err.stack}\n`;
+    // Write to file since blessed fullscreen hides console output
+    fs.appendFileSync('/tmp/voice-app-error.log', errorMsg);
+    console.error(errorMsg);
     process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('\n=== UNHANDLED REJECTION ===');
-    console.error('Reason:', reason);
-    console.error('Promise:', promise);
+    const errorMsg = `\n=== UNHANDLED REJECTION ===\nReason: ${reason}\nPromise: ${promise}\n`;
+    // Write to file since blessed fullscreen hides console output
+    fs.appendFileSync('/tmp/voice-app-error.log', errorMsg);
+    console.error(errorMsg);
     process.exit(1);
 });
 

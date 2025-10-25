@@ -56,7 +56,7 @@ function getDefaultMicrophone() {
       const match = output.match(/Description:\s*(.+)/);
       if (match) {
         const name = match[1].trim();
-        return name.length > 35 ? name.substring(0, 32) + '...' : name;
+        return name.length > 12 ? name.substring(0, 12) + '...' : name;
       }
     } catch (e) {
       const output = execSync('arecord -l | grep "card" | head -1', {
@@ -66,7 +66,7 @@ function getDefaultMicrophone() {
       const match = output.match(/card \d+: ([^,\[]+)/);
       if (match) {
         const name = match[1].trim();
-        return name.length > 35 ? name.substring(0, 32) + '...' : name;
+        return name.length > 12 ? name.substring(0, 12) + '...' : name;
       }
     }
   } catch (error) {
@@ -91,9 +91,7 @@ function calculateAudioLevel(buffer) {
 }
 
 // Initialize Vosk model
-console.log('Loading Vosk model...');
 const model = new vosk.Model(MODEL_PATH);
-console.log('Model loaded successfully!');
 
 // Create blessed screen
 const screen = blessed.screen({
@@ -157,14 +155,9 @@ function updateInfoLine() {
   const micName = cachedMicName || getDefaultMicrophone();
   const level = currentAudioLevel;
 
-  const leftInfo = `{yellow-fg}Mic:{/yellow-fg} {green-fg}${micName} (${level}%){/green-fg}`;
-  const rightInfo = `{yellow-fg}F9:{/yellow-fg} {green-fg}Start/Stop{/green-fg}`;
+  const info = `{yellow-fg}Mic:{/yellow-fg} {green-fg}${micName} (${level}%){/green-fg}`;
 
-  const leftPlain = leftInfo.replace(/\{[^}]+\}/g, '');
-  const rightPlain = rightInfo.replace(/\{[^}]+\}/g, '');
-  const padding = ' '.repeat(Math.max(1, 60 - leftPlain.length - rightPlain.length));
-
-  infoLine.setContent(leftInfo + padding + rightInfo);
+  infoLine.setContent(info);
   screen.render();
 }
 

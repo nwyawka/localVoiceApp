@@ -271,6 +271,11 @@ function typeNewWords(newText) {
             for (let i = alreadyTypedCount; i < newWords.length; i++) {
                 const word = newWords[i];
 
+                // Skip if this word is a duplicate of the last typed word
+                if (typedWords.length > 0 && word === typedWords[typedWords.length - 1]) {
+                    continue; // Skip consecutive duplicate
+                }
+
                 // Type the word followed by a space
                 typeTextAtCursor(word + ' ');
 
@@ -415,6 +420,12 @@ function stopRecording() {
                     // Type any remaining words that weren't captured in partial results
                     for (let i = typedWords.length; i < finalWords.length; i++) {
                         const word = finalWords[i];
+
+                        // Skip if this word is a duplicate of the last typed word
+                        if (typedWords.length > 0 && word === typedWords[typedWords.length - 1]) {
+                            continue; // Skip consecutive duplicate
+                        }
+
                         typeTextAtCursor(word + ' ');
                         typedWords.push(word);
                     }

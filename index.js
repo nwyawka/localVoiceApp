@@ -78,8 +78,9 @@ function calculateAudioLevel(buffer) {
 
   // Calculate RMS (Root Mean Square)
   let sum = 0;
-  for (let i = 0; i < buffer.length; i++) {
-    const normalized = buffer.readInt16LE(i * 2) / 32768.0;
+  // Loop through buffer in 2-byte increments (Int16 = 2 bytes)
+  for (let i = 0; i < buffer.length; i += 2) {
+    const normalized = buffer.readInt16LE(i) / 32768.0;
     sum += normalized * normalized;
   }
   const rms = Math.sqrt(sum / (buffer.length / 2));

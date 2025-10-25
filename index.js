@@ -6,6 +6,21 @@ const { execSync } = require('child_process');
 const { GlobalKeyboardListener } = require('node-global-key-listener');
 const blessed = require('blessed');
 
+// Global error handlers to catch all uncaught exceptions
+process.on('uncaughtException', (err) => {
+    console.error('\n=== UNCAUGHT EXCEPTION ===');
+    console.error('Error:', err.message);
+    console.error('Stack:', err.stack);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('\n=== UNHANDLED REJECTION ===');
+    console.error('Reason:', reason);
+    console.error('Promise:', promise);
+    process.exit(1);
+});
+
 // Path to the Vosk model (using large model for better accuracy)
 const MODEL_PATH = path.join(__dirname, 'models', 'vosk-model-en-us-0.22');
 
